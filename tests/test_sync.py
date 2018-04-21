@@ -34,8 +34,9 @@ def test_global_handler_sync():
     ee = EventEmitter()
 
     @ee.on_any()
-    def event_handler(data, **kwargs):
+    def event_handler(event, data, **kwargs):
         call_me()
+        assert event == 'event'
         assert data == 'emitter is emitted!'
 
     # Making sure data is passed propers

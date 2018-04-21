@@ -184,11 +184,34 @@ class EventEmitter(object):
         """
         handled = False
 
-        # Merge global event handlers event:'*', and specific handlers
-        # for this event
-        handlers = list(self._events['*'].values()) + list(self._events[event].values())
+        # Global handlers
+        for f in list(self._events['*'].values()):
+            result = f(event, *args, **kwargs)
 
-        for f in handlers:
+            # If f was a coroutine function, we need to schedule it and
+            # handle potential errors
+            if iscoroutine and iscoroutine(result):
+                if self._loop:
+                    d = self._schedule(result, loop=self._loop)
+                else:
+                    d = self._schedule(result)
+
+                # scheduler gave us an asyncio Future
+                if hasattr(d, 'add_done_callback'):
+                    @d.add_done_callback
+                    def _callback(f):
+                        exc = f.exception()
+                        if exc:
+                            self.emit('error', exc)
+
+                # scheduler gave us a twisted Deferred
+                elif hasattr(d, 'addErrback'):
+                    @d.addErrback
+                    def _callback(exc):
+                        self.emit('error', exc)
+
+        # Specific event handlers
+        for f in list(self._events[event].values()):
             result = f(*args, **kwargs)
 
             # If f was a coroutine function, we need to schedule it and
