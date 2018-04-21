@@ -27,6 +27,22 @@ def test_emit_sync():
 
     call_me.assert_called_once()
 
+def test_global_handler_sync():
+    """Basic synchronous emission works"""
+
+    call_me = Mock()
+    ee = EventEmitter()
+
+    @ee.on_any()
+    def event_handler(data, **kwargs):
+        call_me()
+        assert data == 'emitter is emitted!'
+
+    # Making sure data is passed propers
+    ee.emit('event', 'emitter is emitted!', error=False)
+
+    call_me.assert_called_once()
+
 
 def test_emit_error():
     """Errors raise with no event handler, otherwise emit on handler"""

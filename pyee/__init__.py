@@ -82,6 +82,43 @@ class EventEmitter(object):
         self._schedule = scheduler
         self._loop = loop
 
+    def on_any(self, f=None):
+        """Registers the function (or optionally an asyncio coroutine function)
+        ``f`` for receiving all events.
+
+        If ``f`` isn't provided, this method returns a function that
+        takes ``f`` as a callback; in other words, you can use this method
+        as a decorator, like so::
+
+            @ee.on_any()
+            def global_event_handler(event, data):
+                print(event, data)
+
+        As mentioned, this method can also take an asyncio coroutine function::
+
+           @ee.on_any()
+           async def global_event_handler(event, data)
+               await do_async_thing(event, data)
+
+
+        This will automatically schedule the coroutine using the configured
+        scheduling function (defaults to ``asyncio.ensure_future``) and the
+        configured event loop (defaults to ``asyncio.get_event_loop()``).
+
+        In both the decorated and undecorated forms, the event handler is
+        returned. The upshot of this is that you can call decorated handlers
+        directly, as well as use them in remove_listener calls.
+        """
+
+        def _on(f):
+            self._add_event_handler('*', f, f)
+            return f
+
+        if f is None:
+            return _on
+        else:
+            return _on(f)
+
     def on(self, event, f=None):
         """Registers the function (or optionally an asyncio coroutine function)
         ``f`` to the event name ``event``.
@@ -147,7 +184,11 @@ class EventEmitter(object):
         """
         handled = False
 
-        for f in list(self._events[event].values()):
+        # Merge global event handlers event:'*', and specific handlers
+        # for this event
+        handlers = list(self._events['*'].values()) + list(self._events[event].values())
+
+        for f in handlers:
             result = f(*args, **kwargs)
 
             # If f was a coroutine function, we need to schedule it and
